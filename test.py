@@ -5,6 +5,7 @@ import torch
 import numpy as np
 from torchdata.datapipes.iter import IterableWrapper, StreamReader
 from torch.utils.data import DataLoader
+from torchdata.dataloader2 import DataLoader2, MultiProcessingReadingService
 from torchvision.io import decode_jpeg
 
 CONNECTION_STRING=os.environ['CONNECTION_STRING']
@@ -24,10 +25,10 @@ def run(batch_size, num_workers):
     # dp = IterableWrapper(['abfs://bdd100k/images/100k/train']).list_files_by_fsspec(**storage_options).sharding_filter().open_files_by_fsspec(mode='rb',**storage_options)
 
     dp = IterableWrapper(files).sharding_filter().open_files_by_fsspec(mode='rb',**storage_options)
-    dp = dp.read_from_stream().map(fn=decode)
+    dp = dp.read_from_stream().map(fn=decode).batch(batch_size).collate()
 
-    batch_size = 64
-    dl = DataLoader(dp, batch_size=batch_size, num_workers=num_workers, prefetch_factor=4)
+    dl = DataLoader2(datapipe=dp, reading_service=MultiProcessingReadingService(num_workers=num_workers))
+    # dl = DataLoader(dp, batch_size=None, num_workers=num_workers)
 
     batch_times=[]
 
@@ -54,4 +55,4 @@ def main(batch_size=64, num_workers=(24,48, 64, 128), num_runs=5):
     print({k: np.mean(v) for k,v in results.items()})
 
 if __name__ == '__main__':
-    main()
+    main(batch_size=64,  num_workers=[48], num_runs=1)
